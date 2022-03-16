@@ -1,7 +1,7 @@
 import os
 import geopandas as gpd
 import streamlit as st
-
+import pandas as pd
 
 def save_uploaded_file(file_content, file_name):
     """
@@ -54,14 +54,28 @@ def app():
     container = st.container()
 
     circo_path = 'france-circonscriptions-legislatives-2012.geojson'
-
+    result_elect_path = 'leg_circo_2017.csv'
     layer_name = 'Circonscriptions'
-
     gdf = gpd.read_file(circo_path)
+    gdf['num_circ'] = gdf['num_circ'].apply(lambda x: int(x))
+    leg = pd.read_csv(result_elect_path)
+    leg['Code du département'] = leg['Code du département'].apply(lambda x: x.zfill(2))
+    merged = gdf.merge(leg, right_on=['Code du département', 'Code de la circonscription'], left_on=['code_dpt', 'num_circ'] )
+    if st.checkbox('Montrer les données brutes'):
+        st.subheader('Données brutes')
+        st.write('geojson des circos')
+        st.write(pd.DataFrame(gdf.to_wkt()))
+        st.write('résultats des circos')
+        st.write(leg)
+        st.write("merge")
+        st.write(merged.to_wkt())
+    print(gdf.dtypes, leg.dtypes)
     lon, lat = leafmap.gdf_centroid(gdf)
     if backend == "pydeck":
 
-        column_names = gdf.columns.values.tolist()
+        column_names = ['Inscrits', 'Abstentions', '% Abs/Ins', 'Votants', '% Vot/Ins', 'Blancs', '% Blancs/Ins',
+                        '% Blancs/Vot', 'Nuls', '% Nuls/Ins', '% Nuls/Vot',  'Exprimés',
+                        '% Exp/Ins', '% Exp/Vot']
         random_column = None
         with container:
             random_color = st.checkbox("Apply random colors", True)
@@ -71,15 +85,15 @@ def app():
                 )
 
         m = leafmap.Map(center=(lat, lon))
-        m.add_gdf(gdf, random_color_column=random_column)
+        m.add_gdf(merged, random_color_column=random_column)
         st.pydeck_chart(m)
 
     else:
         m = leafmap.Map(center=(lat, lon), draw_export=True)
-        m.add_gdf(gdf, layer_name=layer_name)
+        m.add_gdf(merged, layer_name=layer_name)
         # m.add_vector(file_path, layer_name=layer_name)
         if backend == "folium":
-            m.zoom_to_gdf(gdf)
+            m.zoom_to_gdf(merged)
         m.to_streamlit()
 
 
