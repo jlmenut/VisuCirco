@@ -2,6 +2,9 @@ import os
 import geopandas as gpd
 import streamlit as st
 import pandas as pd
+import plotly.express as px #if using plotly
+
+st.set_page_config(layout="wide")
 
 def save_uploaded_file(file_content, file_name):
     """
@@ -20,7 +23,19 @@ def save_uploaded_file(file_content, file_name):
 
     return file_path
 
-
+def _max_width_():
+    max_width_str = f"max-width: 2000px;"
+    st.markdown(
+        f"""
+    <style>
+    .reportview-container .main .block-container{{
+        {max_width_str}
+    }}
+    </style>    
+    """,
+        unsafe_allow_html=True,
+    )
+    
 def app():
 
     st.title("Circonscriptions france")
@@ -28,30 +43,13 @@ def app():
     # row1_col1, row1_col2 = st.columns([2, 1])
     # width = 950
     # height = 600
+    _max_width_()
 
-
-    backend = st.selectbox(
-        "Select a plotting backend", ["folium", "kepler.gl", "pydeck"], index=2
+    data = st.selectbox(
+        "Selectionnez une donnée à visualiser", ['Inscrits', 'Abstentions', '% Abs/Ins', 'Votants', '% Vot/Ins', 
+                                                 'Blancs', '% Blancs/Ins', '% Blancs/Vot','Nuls', '% Nuls/Ins', 
+                                                 '% Nuls/Vot', 'Exprimés', '% Exp/Ins', '% Exp/Vot',], index=3
     )
-
-    if backend == "folium":
-        import leafmap.foliumap as leafmap
-    elif backend == "kepler.gl":
-        import leafmap.kepler as leafmap
-    elif backend == "pydeck":
-        import leafmap.deck as leafmap
-
-    # url = st.text_input(
-    #     "Enter a URL to a vector dataset",
-    #     "https://github.com/giswqs/streamlit-geospatial/raw/master/data/us_states.geojson",
-    # )
-
-    # data = st.file_uploader(
-    #     "Upload a vector dataset", type=["geojson", "kml", "zip", "tab"]
-    # )
-
-    data = None
-    container = st.container()
 
     circo_path = 'france-circonscriptions-legislatives-2012.geojson'
     result_elect_path = 'leg_circo_2017.csv'
@@ -61,40 +59,55 @@ def app():
     leg = pd.read_csv(result_elect_path)
     leg['Code du département'] = leg['Code du département'].apply(lambda x: x.zfill(2))
     merged = gdf.merge(leg, right_on=['Code du département', 'Code de la circonscription'], left_on=['code_dpt', 'num_circ'] )
-    if st.checkbox('Montrer les données brutes'):
-        st.subheader('Données brutes')
-        st.write('geojson des circos')
-        st.write(pd.DataFrame(gdf.to_wkt()))
-        st.write('résultats des circos')
-        st.write(leg)
-        st.write("merge")
-        st.write(merged.to_wkt())
-    print(gdf.dtypes, leg.dtypes)
-    lon, lat = leafmap.gdf_centroid(gdf)
-    if backend == "pydeck":
 
-        column_names = ['Inscrits', 'Abstentions', '% Abs/Ins', 'Votants', '% Vot/Ins', 'Blancs', '% Blancs/Ins',
-                        '% Blancs/Vot', 'Nuls', '% Nuls/Ins', '% Nuls/Vot',  'Exprimés',
-                        '% Exp/Ins', '% Exp/Vot']
-        random_column = None
-        with container:
-            random_color = st.checkbox("Apply random colors", True)
-            if random_color:
-                random_column = st.selectbox(
-                    "Select a column to apply random colors", column_names
-                )
+    #'Inscrits', 'Abstentions', '% Abs/Ins', 'Votants', '% Vot/Ins', 'Blancs', '% Blancs/Ins', '% Blancs/Vot',
+    #                            'Nuls', '% Nuls/Ins', '% Nuls/Vot', 'Exprimés', '% Exp/Ins', '% Exp/Vot',
+    
 
-        m = leafmap.Map(center=(lat, lon))
-        m.add_gdf(merged, random_color_column=random_column)
-        st.pydeck_chart(m)
+    fig = px.choropleth_mapbox(merged, geojson=merged.geometry,
+                    locations=merged.index, color=data,
+                    hover_data=['Libellé du département', 'Code du département', 'Code de la circonscription'],
+                    width=1200,
+                    height=1200,
+                    zoom = 5.6,
+                    center={'lat':46.227638, 'lon':2.213749},
+                    )
+    fig.update_layout(mapbox_style="open-street-map")
+    st.plotly_chart(fig, use_container_width=True)
+    # if st.checkbox('Montrer les données brutes'):
+    #     st.subheader('Données brutes')
+    #     st.write('geojson des circos')
+    #     st.write(pd.DataFrame(gdf.to_wkt()))
+    #     st.write('résultats des circos')
+    #     st.write(leg)
+    #     st.write("merge")
+    #     st.write(merged.to_wkt())
+    # print(gdf.dtypes, leg.dtypes)
+    # lon, lat = leafmap.gdf_centroid(gdf)
+    # if backend == "pydeck":
 
-    else:
-        m = leafmap.Map(center=(lat, lon), draw_export=True)
-        m.add_gdf(merged, layer_name=layer_name)
-        # m.add_vector(file_path, layer_name=layer_name)
-        if backend == "folium":
-            m.zoom_to_gdf(merged)
-        m.to_streamlit()
+    #     column_names = ['Inscrits', 'Abstentions', '% Abs/Ins', 'Votants', '% Vot/Ins', 'Blancs', '% Blancs/Ins',
+    #                     '% Blancs/Vot', 'Nuls', '% Nuls/Ins', '% Nuls/Vot',  'Exprimés',
+    #                     '% Exp/Ins', '% Exp/Vot']
+    #     random_column = None
+    #     with container:
+    #         random_color = st.checkbox("Apply random colors", True)
+    #         if random_color:
+    #             random_column = st.selectbox(
+    #                 "Select a column to apply random colors", column_names
+    #             )
+
+    #     m = leafmap.Map(center=(lat, lon))
+    #     m.add_gdf(merged, random_color_column=random_column)
+    #     st.pydeck_chart(m)
+
+    # else:
+    #     m = leafmap.Map(center=(lat, lon), draw_export=True)
+    #     m.add_gdf(merged, layer_name=layer_name)
+    #     # m.add_vector(file_path, layer_name=layer_name)
+    #     if backend == "folium":
+    #         m.zoom_to_gdf(merged)
+        # m.to_streamlit()
 
 
 app()
